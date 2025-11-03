@@ -72,6 +72,30 @@ if ('serviceWorker' in navigator) {
   <button class="danger" id="btnReset">Reiniciar</button>
   <button class="primary" id="btnPDF">Generar PDF</button>
 </div>
+<div class="row" style="margin-top:8px;gap:14px;align-items:center">
+  <span class="muted">Leyenda:</span>
+  <span style="display:flex;align-items:center;gap:6px">
+    <span style="width:12px;height:12px;background:#3de1a9;border-radius:2px;display:inline-block"></span>
+    <span class="muted">Ingreso mensual</span>
+  </span>
+  <span style="display:flex;align-items:center;gap:6px">
+    <span style="width:12px;height:12px;background:#ff7b7b;border-radius:2px;display:inline-block"></span>
+    <span class="muted">Coste mensual</span>
+  </span>
+  <span style="display:flex;align-items:center;gap:6px">
+    <span style="width:18px;height:2px;background:#2fe59f;display:inline-block"></span>
+    <span class="muted">Ingresos acumulados</span>
+  </span>
+  <span style="display:flex;align-items:center;gap:6px">
+    <span style="width:18px;height:2px;background:#ff9b9b;display:inline-block"></span>
+    <span class="muted">Costes acumulados</span>
+  </span>
+  <span style="display:flex;align-items:center;gap:6px">
+    <span style="width:18px;height:2px;background:#8aa0ff;display:inline-block"></span>
+    <span class="muted">Neto acumulado</span>
+  </span>
+</div>
+
 
 </div></div>
 
@@ -166,25 +190,109 @@ function ratingFor(k){
 }
 
 // Gráfica (negativos arriba, positivos abajo)
-function drawChart(cf){
-  const c=document.getElementById('chart'), ctx=c.getContext('2d'), w=c.width, h=c.height;
-  ctx.clearRect(0,0,w,h);
-  const pad={l:50,r:20,t:20,b:30}, X0=pad.l, X1=w-pad.r, Y0=h-pad.b, Y1=pad.t;
-  if(!cf.length){ ctx.fillStyle='#9db0d6'; ctx.font=`${12*(window.devicePixelRatio||1)}px system-ui`; ctx.fillText('Añade ítems y pulsa “Calcular rentabilidad”.', 20*(window.devicePixelRatio||1), 32*(window.devicePixelRatio||1)); return; }
-  const n=cf.length, minV=Math.min(0,...cf), maxV=Math.max(0,...cf), absMax=Math.max(Math.abs(minV),Math.abs(maxV),1);
-  const y0=(h-pad.b+pad.t)/2;
-  ctx.strokeStyle='#2c3b63'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(X0,y0); ctx.lineTo(X1,y0); ctx.stroke();
-  const bar=Math.max(2,(X1-X0)/n*0.7);
-  for(let i=0;i<n;i++){
-    const xi=X0 + i*(X1-X0)/n + ((X1-X0)/n - bar)/2;
-    const v=cf[i];
-    const yy = y0 + (v/absMax)*((Y0-Y1)/2);
-    ctx.fillStyle = v>=0 ? '#3de1a9' : '#ff7b7b';
-    if(v>=0){ ctx.fillRect(xi, y0, bar, yy - y0); } else { ctx.fillRect(xi, yy, bar, y0 - yy); }
+<script>
+// Construye acumulados: ingresos, costes (magnitud positiva), y neto
+function buildCumulatives(cf) {
+  const n = cf.length;
+  const inCum  = new Array(n).fill(0);
+  const outCum = new Array(n).fill(0);
+  const netCum = new Array(n).fill(0);
+  let si = 0, so = 0, sn = 0;
+  for (let t = 0; t < n; t++) {
+    const v = cf[t];
+    if (v >= 0) si += v; else so += -v; // costes en positivo para “acumulado de costes”
+    sn += v;
+    inCum[t]  = si;
+    outCum[t] = so;
+    netCum[t] = sn;
   }
-  ctx.fillStyle='#9db0d6'; ctx.font=`${11*(window.devicePixelRatio||1)}px system-ui`;
-  const ticks=Math.min(12,n-1); for(let i=0;i<=ticks;i++){ const t=Math.round(i*(n-1)/ticks); const x=X0 + t*(X1-X0)/n + ((X1-X0)/n)/2; ctx.fillText('m'+t, x-10, h-8); }
-  for(let i=1;i<=2;i++){ const val=i*absMax/2; ctx.fillText(fmt(val), 6, y0 + (val/absMax)*((Y0-Y1)/2) + 4); ctx.fillText('-'+fmt(val), 6, y0 - (val/absMax)*((Y0-Y1)/2) + 4); }
+  return { inCum, outCum, netCum };
+}
+
+// Dibuja barras mensuales + líneas de acumulados
+function drawChart(cf){
+  const c = document.getElementById('chart'), ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.clearRect(0,0,w,h);
+
+  const pad = { l:50, r:20, t:20, b:30 };
+  const X0 = pad.l, X1 = w - pad.r, Y0 = h - pad.b, Y1 = pad.t;
+
+  if (!cf.length) {
+    ctx.fillStyle = '#9db0d6';
+    ctx.font = `${12*(window.devicePixelRatio||1)}px system-ui`;
+    ctx.fillText('Añade ítems y pulsa “Calcular rentabilidad”.', 20*(window.devicePixelRatio||1), 32*(window.devicePixelRatio||1));
+    return;
+  }
+
+  const n = cf.length;
+
+  // Escala para barras (flujos mensuales) con cero en el centro (negativos arriba, positivos abajo)
+  const minV = Math.min(0, ...cf), maxV = Math.max(0, ...cf);
+  const absMax = Math.max(Math.abs(minV), Math.abs(maxV), 1);
+  const y0 = (h - pad.b + pad.t) / 2;
+  const yBar = (v) => y0 + (v / absMax) * ((Y0 - Y1) / 2);
+
+  // Eje central
+  ctx.strokeStyle = '#2c3b63';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X0, y0); ctx.lineTo(X1, y0); ctx.stroke();
+
+  // Barras mensuales
+  const bar = Math.max(2, (X1 - X0) / n * 0.7);
+  for (let i = 0; i < n; i++) {
+    const xi = X0 + i * (X1 - X0) / n + ((X1 - X0) / n - bar) / 2;
+    const v  = cf[i];
+    const yy = yBar(v);
+    ctx.fillStyle = v >= 0 ? '#3de1a9' : '#ff7b7b';
+    if (v >= 0) { ctx.fillRect(xi, y0, bar, yy - y0); }        // ingreso hacia abajo
+    else        { ctx.fillRect(xi, yy, bar, y0 - yy); }        // coste hacia arriba
+  }
+
+  // ===== LÍNEAS DE ACUMULADOS (Ingresos, Costes, Neto) =====
+  const { inCum, outCum, netCum } = buildCumulatives(cf);
+
+  // Escala de acumulados: calculamos min/max entre las tres series
+  const accMin = Math.min(0, ...netCum);                   // el neto puede ser negativo
+  const accMax = Math.max( inCum[n-1], outCum[n-1], ...netCum, 0 );
+  const accRange = Math.max(1, accMax - accMin);
+  const yAcc = (v) => Y0 - ( (v - accMin) / accRange ) * (Y0 - Y1); // acumulados con cero en la parte inferior
+
+  // Función línea
+  function plotLine(series, color, width=2) {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const xx = X0 + (i + 0.5) * (X1 - X0) / n; // en medio de la barra
+      const yy = yAcc(series[i]);
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+  }
+
+  // Dibujar acumulados: ingresos (verde), costes (rojo claro), neto (azul)
+  plotLine(inCum,  '#2fe59f', 2);
+  plotLine(outCum, '#ff9b9b', 2);
+  plotLine(netCum, '#8aa0ff', 2);
+
+  // Eje X (meses)
+  ctx.fillStyle = '#9db0d6';
+  ctx.font = `${11*(window.devicePixelRatio||1)}px system-ui`;
+  const ticks = Math.min(12, n - 1);
+  for (let i = 0; i <= ticks; i++) {
+    const t  = Math.round(i * (n - 1) / ticks);
+    const xx = X0 + (t + 0.5) * (X1 - X0) / n;
+    ctx.fillText('m' + t, xx - 10, h - 8);
+  }
+
+  // Etiquetas de escala acumulada (opcional, 2 marcas)
+  ctx.fillText(
+    (accMax).toLocaleString('es-ES', { maximumFractionDigits: 0 }),
+    6, Y1 + 10
+  );
+  ctx.fillText(
+    (accMin).toLocaleString('es-ES', { maximumFractionDigits: 0 }),
+    6, Y0
+  );
 }
 
 // Calcular
