@@ -210,6 +210,8 @@ function buildCumulatives(cf) {
 }
 
 // Dibuja barras mensuales + líneas de acumulados
+  <script>
+// Línea de neto acumulado: desde t=0 hasta cada mes t
 function drawChart(cf){
   const c = document.getElementById('chart'), ctx = c.getContext('2d');
   const w = c.width, h = c.height;
@@ -226,6 +228,60 @@ function drawChart(cf){
   }
 
   const n = cf.length;
+
+  // ===== acumulado neto =====
+  const netCum = new Array(n).fill(0);
+  let s = 0;
+  for (let t = 0; t < n; t++) { s += cf[t]; netCum[t] = s; }
+
+  // Escala vertical con cero en el centro (negativo arriba, positivo abajo)
+  const minV = Math.min(0, ...netCum);
+  const maxV = Math.max(0, ...netCum);
+  const absMax = Math.max(Math.abs(minV), Math.abs(maxV), 1);
+
+  const y0 = (h - pad.b + pad.t) / 2;                        // línea de cero en el centro
+  const y = (v) => y0 + (v / absMax) * ((Y0 - Y1) / 2);      // v>0 baja; v<0 sube (convención)
+
+  // Eje 0
+  ctx.strokeStyle = '#2c3b63';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X0, y0); ctx.lineTo(X1, y0); ctx.stroke();
+
+  // ===== línea acumulada (azul) =====
+  ctx.strokeStyle = '#8aa0ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const xx = X0 + (i + 0.5) * (X1 - X0) / n; // punto en el centro del mes
+    const yy = y(netCum[i]);
+    if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+  }
+  ctx.stroke();
+
+  // (Opcional) puntos
+  ctx.fillStyle = '#8aa0ff';
+  for (let i = 0; i < n; i++) {
+    const xx = X0 + (i + 0.5) * (X1 - X0) / n;
+    const yy = y(netCum[i]);
+    ctx.beginPath(); ctx.arc(xx, yy, 2.5*(window.devicePixelRatio||1), 0, Math.PI*2); ctx.fill();
+  }
+
+  // Ticks X (meses)
+  ctx.fillStyle = '#9db0d6';
+  ctx.font = `${11*(window.devicePixelRatio||1)}px system-ui`;
+  const ticks = Math.min(12, n - 1);
+  for (let i = 0; i <= ticks; i++) {
+    const t = Math.round(i * (n - 1) / ticks);
+    const xx = X0 + (t + 0.5) * (X1 - X0) / n;
+    ctx.fillText('m' + t, xx - 10, h - 8);
+  }
+
+  // Etiquetas de referencia (valor aprox)
+  ctx.fillText( (+absMax).toLocaleString('es-ES', { maximumFractionDigits: 0 }), 6, y(+absMax)+4 );
+  ctx.fillText( (-absMax).toLocaleString('es-ES', { maximumFractionDigits: 0 }), 6, y(-absMax)+4 );
+}
+
+  
 
   // Escala para barras (flujos mensuales) con cero en el centro (negativos arriba, positivos abajo)
   const minV = Math.min(0, ...cf), maxV = Math.max(0, ...cf);
