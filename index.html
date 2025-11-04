@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Calculadora de Esfuerzo Financiero URBANIX — Costes/Ingresos + Informe PDF</title>
 
+<!-- PWA / Iconos -->
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" href="./icon-192.png" sizes="192x192">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -28,7 +29,7 @@ th{color:#9db0d6;text-align:left}.right{text-align:right}.tag{display:inline-blo
 .kpi{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
 .kpi .box{background:#0e1730;border:1px solid #223153;border-radius:10px;padding:10px 12px;min-width:160px}
 .ok{color:#8ef6b1}.warn{color:#ffd166}.bad{color:#ff9aa2}
-.canvasWrap{width:100%;height:320px;background:#0e1730;border:1px solid #223153;border-radius:10px;margin-top:8px}
+.canvasWrap{width:100%;height:360px;background:#0e1730;border:1px solid #223153;border-radius:10px;margin-top:8px}
 canvas{width:100%;height:100%;display:block}
 @media (max-width:480px){input,select,button{font-size:16px;padding:12px}h1{font-size:18px}}
 </style>
@@ -77,26 +78,28 @@ if ('serviceWorker' in navigator) {
 <div class="row" style="margin-top:8px;gap:14px;align-items:center">
   <span class="muted">Leyenda:</span>
   <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#8aa0ff;display:inline-block"></span><span class="muted">Neto acumulado</span></span>
+  <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#3de1a9;border-radius:2px;display:inline-block"></span><span class="muted">Flujo + (verde)</span></span>
+  <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#ff7b7b;border-radius:2px;display:inline-block"></span><span class="muted">Flujo − (rojo)</span></span>
 </div>
 
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
-// ======= Retina canvas =======
+// ===== Retina canvas =====
 (function(){
   const c=document.getElementById('chart'), dpr=window.devicePixelRatio||1;
   function fit(){ const r=c.getBoundingClientRect(); c.width=Math.round(r.width*dpr); c.height=Math.round(r.height*dpr); if (window.lastCF) drawChart(window.lastCF); }
   window.addEventListener('load',fit); window.addEventListener('resize',fit);
 })();
 
-// ======= Estado y utilidades =======
+// ===== Estado y utilidades =====
 const items=[]; const tbody=document.querySelector('#tabla tbody');
 const fmt=n=>(isFinite(n)?n:0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pct=n=>(isFinite(n)?(n*100):0).toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';
 function escapeHTML(s){return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
-// ======= Alta =======
+// ===== Alta =====
 document.getElementById('btnAdd').onclick=()=>{
   const tipo=document.getElementById('tipo').value;
   const concepto=document.getElementById('concepto').value.trim()||(tipo==='income'?'Ingreso':'Coste');
@@ -131,7 +134,7 @@ function renderTable(){
   });
 }
 
-// ======= Cashflow mensual =======
+// ===== Cashflow mensual =====
 function buildCashflow(){
   if(!items.length) return [];
   const last=Math.max(...items.map(it=>it.start+it.dur-1));
@@ -147,7 +150,7 @@ function buildCashflow(){
   return cf;
 }
 
-// ======= KPIs =======
+// ===== KPIs =====
 function computeKPIs(cf){
   const inflows=cf.filter(x=>x>0).reduce((a,b)=>a+b,0);
   const outflowsAbs=-cf.filter(x=>x<0).reduce((a,b)=>a+b,0);
@@ -171,55 +174,86 @@ function ratingFor(k){
   return {label:'Mejorable',cls:'bad'};
 }
 
-// ======= Gráfica: línea de neto acumulado (desde t=0) =======
+// ===== Gráfica: línea de neto acumulado + barras que alcanzan la línea =====
 function drawChart(cf){
   const c=document.getElementById('chart'), ctx=c.getContext('2d'), w=c.width, h=c.height;
   ctx.clearRect(0,0,w,h);
-  const pad={l:50,r:20,t:20,b:30}, X0=pad.l, X1=w-pad.r, Y0=h-pad.b, Y1=pad.t;
+  const pad={l:50,r:20,t:20,b:34}, X0=pad.l, X1=w-pad.r, Y0=h-pad.b, Y1=pad.t;
 
   if(!cf.length){
     ctx.fillStyle='#9db0d6'; ctx.font=`${12*(window.devicePixelRatio||1)}px system-ui`;
     ctx.fillText('Añade ítems y pulsa “Calcular rentabilidad”.', 20*(window.devicePixelRatio||1), 32*(window.devicePixelRatio||1));
     return;
   }
+
   const n=cf.length;
+  // Serie acumulada neta
   const netCum=new Array(n).fill(0); let s=0; for(let t=0;t<n;t++){ s+=cf[t]; netCum[t]=s; }
 
+  // Escala vertical con cero en el centro (tu convención)
   const minV=Math.min(0,...netCum), maxV=Math.max(0,...netCum);
   const absMax=Math.max(Math.abs(minV),Math.abs(maxV),1);
   const y0=(h-pad.b+pad.t)/2;
-  const y=v=> y0 + (v/absMax)*((Y0-Y1)/2); // >0 abajo, <0 arriba
+  const y=v=> y0 + (v/absMax)*((Y0-Y1)/2); // >0 va hacia abajo, <0 hacia arriba
 
-  // eje 0
-  ctx.strokeStyle='#2c3b63'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(X0,y0); ctx.lineTo(X1,y0); ctx.stroke();
+  // Eje 0
+  ctx.strokeStyle='#2c3b63'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(X0,y0); ctx.lineTo(X1,y0); ctx.stroke();
 
-  // línea acumulada
+  // Barras por mes: desde acumulado anterior a acumulado actual
+  const colPos = '#3de1a9', colNeg = '#ff7b7b';
+  const segW = (X1-X0)/n;
+  const barW = Math.max(3, segW * 0.5);
+  for(let i=0;i<n;i++){
+    const prev = i>0 ? netCum[i-1] : 0;
+    const curr = netCum[i];
+    const xx = X0 + i*segW + (segW - barW)/2; // centrar en segmento
+    const yPrev = y(prev);
+    const yCurr = y(curr);
+    const top = Math.min(yPrev, yCurr);
+    const height = Math.abs(yCurr - yPrev);
+
+    // color según el flujo del mes
+    ctx.fillStyle = (cf[i] >= 0) ? colPos : colNeg;
+    // si el flujo es 0, pinta una línea finita
+    if (height < 1) {
+      ctx.fillRect(xx, yCurr-1, barW, 2);
+    } else {
+      ctx.fillRect(xx, top, barW, height);
+    }
+  }
+
+  // Línea acumulada (por encima de las barras)
   ctx.strokeStyle='#8aa0ff'; ctx.lineWidth=2; ctx.beginPath();
   for(let i=0;i<n;i++){
-    const xx=X0 + (i+0.5)*(X1-X0)/n;
+    const xx=X0 + (i+0.5)*segW;
     const yy=y(netCum[i]);
     if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
   }
   ctx.stroke();
 
-  // puntos
+  // Puntos
   ctx.fillStyle='#8aa0ff';
   for(let i=0;i<n;i++){
-    const xx=X0 + (i+0.5)*(X1-X0)/n, yy=y(netCum[i]);
+    const xx=X0 + (i+0.5)*segW, yy=y(netCum[i]);
     ctx.beginPath(); ctx.arc(xx,yy,2.5*(window.devicePixelRatio||1),0,Math.PI*2); ctx.fill();
   }
 
-  // ticks X
+  // Ticks X (meses)
   ctx.fillStyle='#9db0d6'; ctx.font=`${11*(window.devicePixelRatio||1)}px system-ui`;
   const ticks=Math.min(12,n-1);
-  for(let i=0;i<=ticks;i++){ const t=Math.round(i*(n-1)/ticks); const xx=X0 + (t+0.5)*(X1-X0)/n; ctx.fillText('m'+t, xx-10, h-8); }
+  for(let i=0;i<=ticks;i++){
+    const t=Math.round(i*(n-1)/ticks);
+    const xx=X0 + (t+0.5)*segW;
+    ctx.fillText('m'+t, xx-10, h-8);
+  }
 
-  // referencias
+  // Etiquetas ref (±absMax)
   ctx.fillText((+absMax).toLocaleString('es-ES',{maximumFractionDigits:0}), 6, y(+absMax)+4);
   ctx.fillText((-absMax).toLocaleString('es-ES',{maximumFractionDigits:0}), 6, y(-absMax)+4);
 }
 
-// ======= Calcular =======
+// ===== Calcular =====
 let lastCF=null, lastKPIs=null;
 document.getElementById('btnCalc').onclick=()=>{
   const cf=buildCashflow(); lastCF=window.lastCF=cf; drawChart(cf);
@@ -231,21 +265,29 @@ document.getElementById('btnCalc').onclick=()=>{
   const rate=ratingFor(k); const ratingEl=document.getElementById('rating'); ratingEl.textContent=rate.label; ratingEl.className=rate.cls;
 };
 
-// ======= PDF =======
+// ===== PDF =====
 document.getElementById('btnPDF').onclick=()=>{
   if(!lastCF) return alert('Primero calcula la rentabilidad.');
   const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'}); const pad=40; let y=pad;
   function line(txt,size=12,bold=false){ doc.setFont('helvetica',bold?'bold':'normal'); doc.setFontSize(size); const lines=doc.splitTextToSize(txt,515); doc.text(lines,pad,y); y+=lines.length*(size+4); }
   line('Informe de Inversión',18,true); line(`Fecha: ${new Date().toLocaleString('es-ES')}`);
   line('Entradas',14,true);
-  if(!items.length) line('—'); else items.forEach(it=> line(`• ${it.tipo==='income'?'Ingreso':'Coste'} — ${it.concepto} | inicio m${it.start} | dur ${it.dur} | €/${'mes'} ${fmt(it.importe)}${it.tipo==='cost'?` | interés ${it.interes.toFixed(2)} %`:''}`));
-  line('KPIs',14,true); const rate=ratingFor(lastKPIs);
-  line(`ROI: ${isFinite(lastKPIs.roi)?pct(lastKPIs.roi):'∞'}`); line(`TIR (anual): ${lastKPIs.irr_annual==null?'—':pct(lastKPIs.irr_annual)}`); line(`Multiplicador: ${isFinite(lastKPIs.mult)?lastKPIs.mult.toFixed(2):'∞'}`); line(`Rating: ${rate.label}`);
-  line('Notas',14,true); line('• Costes con interés compuesto mensual: € × (1 + r/12)^m.'); line('• TIR anualizada desde TIR mensual: (1+r_m)^12 - 1.'); line('• Cálculos orientativos.');
+  if(!items.length) line('—');
+  else items.forEach(it=> line(`• ${it.tipo==='income'?'Ingreso':'Coste'} — ${it.concepto} | inicio m${it.start} | dur ${it.dur} | €/${'mes'} ${fmt(it.importe)}${it.tipo==='cost'?` | interés ${it.interes.toFixed(2)} %`:''}`));
+  const rate=ratingFor(lastKPIs);
+  line('KPIs',14,true);
+  line(`ROI: ${isFinite(lastKPIs.roi)?pct(lastKPIs.roi):'∞'}`);
+  line(`TIR (anual): ${lastKPIs.irr_annual==null?'—':pct(lastKPIs.irr_annual)}`);
+  line(`Multiplicador: ${isFinite(lastKPIs.mult)?lastKPIs.mult.toFixed(2):'∞'}`);
+  line(`Rating: ${rate.label}`);
+  line('Notas',14,true);
+  line('• Costes con interés compuesto mensual: € × (1 + r/12)^m.');
+  line('• TIR anualizada desde TIR mensual: (1+r_m)^12 - 1.');
+  line('• Cálculos orientativos.');
   doc.save(`Informe_Inversion_${Date.now()}.pdf`);
 };
 
-// ======= Reset =======
+// ===== Reset =====
 document.getElementById('btnReset').onclick=()=>{
   items.splice(0); renderTable(); lastCF=null; lastKPIs=null;
   const c=document.getElementById('chart'),ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height);
