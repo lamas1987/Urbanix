@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Calculadora de Esfuerzo Financiero URBANIX — Costes/Ingresos + Informe PDF</title>
 
-<!-- PWA / Iconos -->
+<!-- PWA / Iconos (opcionales) -->
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" href="./icon-192.png" sizes="192x192">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -27,9 +27,9 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px 10px
 th{color:#9db0d6;text-align:left}.right{text-align:right}.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
 .income{background:#183f2e;color:#9ff3c7}.cost{background:#402424;color:#f7a4a4}
 .kpi{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
-.kpi .box{background:#0e1730;border:1px solid #223153;border-radius:10px;padding:10px 12px;min-width:160px}
+.kpi .box{background:#0e1730;border:1px solid #223153;border-radius:10px;padding:10px 12px;min-width:200px}
 .ok{color:#8ef6b1}.warn{color:#ffd166}.bad{color:#ff9aa2}
-.canvasWrap{width:100%;height:360px;background:#0e1730;border:1px solid #223153;border-radius:10px;margin-top:8px}
+.canvasWrap{width:100%;height:380px;background:#0e1730;border:1px solid #223153;border-radius:10px;margin-top:8px}
 canvas{width:100%;height:100%;display:block}
 @media (max-width:480px){input,select,button{font-size:16px;padding:12px}h1{font-size:18px}}
 </style>
@@ -43,7 +43,7 @@ if ('serviceWorker' in navigator) {
 <body>
 <div class="wrap"><div class="card">
 <h1>Calculadora de Esfuerzo Financiero URBANIX</h1>
-<p class="muted">Añade ingresos/costes por rango (meses desde t=0). En costes puedes indicar interés anual (%). Calcula ROI, TIR y Multiplicador. Genera PDF.</p>
+<p class="muted">Añade ingresos/costes por rango (meses desde t=0). En costes puedes indicar interés anual (%). Calcula ROI, TIR TOTAL del proyecto y Multiplicador. Genera PDF.</p>
 
 <div class="row" style="margin-top:6px">
   <select id="tipo"><option value="income">Ingreso</option><option value="cost">Coste</option></select>
@@ -63,7 +63,7 @@ if ('serviceWorker' in navigator) {
 
 <div class="kpi" id="kpis" style="display:none">
   <div class="box"><div class="muted">ROI</div><div id="roi" style="font-size:18px">—</div></div>
-  <div class="box"><div class="muted">TIR (anual)</div><div id="irr" style="font-size:18px">—</div></div>
+  <div class="box"><div class="muted">TIR (TOTAL proyecto)</div><div id="irr" style="font-size:18px">—</div></div>
   <div class="box"><div class="muted">Multiplicador</div><div id="mult" style="font-size:18px">—</div></div>
   <div class="box"><div class="muted">Rating</div><div id="rating" style="font-size:18px">—</div></div>
 </div>
@@ -77,7 +77,7 @@ if ('serviceWorker' in navigator) {
 
 <div class="row" style="margin-top:8px;gap:14px;align-items:center">
   <span class="muted">Leyenda:</span>
-  <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#8aa0ff;display:inline-block"></span><span class="muted">Neto acumulado</span></span>
+  <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#b26cff;display:inline-block"></span><span class="muted">Neto acumulado</span></span>
   <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#3de1a9;border-radius:2px;display:inline-block"></span><span class="muted">Flujo + (verde)</span></span>
   <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#ff7b7b;border-radius:2px;display:inline-block"></span><span class="muted">Flujo − (rojo)</span></span>
 </div>
@@ -150,31 +150,44 @@ function buildCashflow(){
   return cf;
 }
 
-// ===== KPIs =====
+// ===== KPIs (TIR del proyecto completa) =====
 function computeKPIs(cf){
   const inflows=cf.filter(x=>x>0).reduce((a,b)=>a+b,0);
   const outflowsAbs=-cf.filter(x=>x<0).reduce((a,b)=>a+b,0);
   const roi=outflowsAbs>0?(inflows-outflowsAbs)/outflowsAbs:(inflows>0?Infinity:0);
   const mult=outflowsAbs>0?inflows/outflowsAbs:(inflows>0?Infinity:1);
-  const r_m=irrMonthly(cf); const irr_annual=(r_m!=null)?(Math.pow(1+r_m,12)-1):null;
-  return {roi,mult,irr_annual};
+
+  // TIR por período (mensual) sin anualizar
+  const irr_per = irrMonthly(cf); // puede ser null
+  // TIR TOTAL del proyecto (equivalente en toda la duración N meses)
+  const N = cf.length || 0;
+  const irr_total = (irr_per==null || N===0) ? null : Math.pow(1+irr_per, N) - 1;
+
+  return {roi, mult, irr_total};
 }
+
+// NPV/TIR por período (mensual)
 function npv(cf,r){let s=0;for(let t=0;t<cf.length;t++) s+=cf[t]/Math.pow(1+r,t);return s;}
 function irrMonthly(cf){
   if(!cf.length) return null; const hasPos=cf.some(x=>x>0), hasNeg=cf.some(x=>x<0); if(!hasPos||!hasNeg) return null;
-  let lo=-0.9999, hi=10, f_lo=npv(cf,lo), f_hi=npv(cf,hi);
-  if(f_lo*f_hi>0){ for(let k=0;k<10&&f_lo*f_hi>0;k++){hi*=2;f_hi=npv(cf,hi);} if(f_lo*f_hi>0) return null; }
-  for(let i=0;i<200;i++){ const mid=(lo+hi)/2, f=npv(cf,mid); if(Math.abs(f)<1e-6) return mid; if(f*f_lo<0){hi=mid;f_hi=f;} else {lo=mid;f_lo=f;} }
+  let lo=-0.9999, hi=10; // r en (-99.99%, +1000%) por período
+  let f_lo=npv(cf,lo), f_hi=npv(cf,hi);
+  if(!isFinite(f_lo)||!isFinite(f_hi)) return null;
+  let expand=0; while(f_lo*f_hi>0 && expand<12){ hi*=1.5; f_hi=npv(cf,hi); expand++; }
+  if(f_lo*f_hi>0) return null;
+  for(let i=0;i<200;i++){ const mid=(lo+hi)/2, f=npv(cf,mid); if(Math.abs(f)<1e-6) return mid; if(f*f_lo<0){hi=mid; f_hi=f;} else {lo=mid; f_lo=f;} }
   return (lo+hi)/2;
 }
+
 function ratingFor(k){
-  const irr=k.irr_annual, roi=k.roi, mult=k.mult;
-  if(irr!=null && irr>=0.15 && roi>=0.30 && mult>=1.5) return {label:'Excelente',cls:'ok'};
-  if(irr!=null && irr>=0.10 && roi>=0.20 && mult>=1.2) return {label:'Buena',cls:'warn'};
+  // Umbrales usando TIR TOTAL
+  const irrT = k.irr_total, roi = k.roi, mult = k.mult;
+  if(irrT!=null && irrT>=0.30 && roi>=0.30 && mult>=1.5) return {label:'Excelente',cls:'ok'};
+  if(irrT!=null && irrT>=0.15 && roi>=0.20 && mult>=1.2) return {label:'Buena',cls:'warn'};
   return {label:'Mejorable',cls:'bad'};
 }
 
-// ===== Gráfica: línea de neto acumulado + barras que alcanzan la línea =====
+// ===== Gráfica: barras que alcanzan la curva morada del acumulado =====
 function drawChart(cf){
   const c=document.getElementById('chart'), ctx=c.getContext('2d'), w=c.width, h=c.height;
   ctx.clearRect(0,0,w,h);
@@ -190,11 +203,11 @@ function drawChart(cf){
   // Serie acumulada neta
   const netCum=new Array(n).fill(0); let s=0; for(let t=0;t<n;t++){ s+=cf[t]; netCum[t]=s; }
 
-  // Escala vertical con cero en el centro (tu convención)
+  // Escala vertical con cero en el centro (negativos arriba / positivos abajo)
   const minV=Math.min(0,...netCum), maxV=Math.max(0,...netCum);
   const absMax=Math.max(Math.abs(minV),Math.abs(maxV),1);
   const y0=(h-pad.b+pad.t)/2;
-  const y=v=> y0 + (v/absMax)*((Y0-Y1)/2); // >0 va hacia abajo, <0 hacia arriba
+  const y=v=> y0 + (v/absMax)*((Y0-Y1)/2); // >0 baja, <0 sube
 
   // Eje 0
   ctx.strokeStyle='#2c3b63'; ctx.lineWidth=1;
@@ -203,28 +216,27 @@ function drawChart(cf){
   // Barras por mes: desde acumulado anterior a acumulado actual
   const colPos = '#3de1a9', colNeg = '#ff7b7b';
   const segW = (X1-X0)/n;
-  const barW = Math.max(3, segW * 0.5);
+  const barW = Math.max(3, segW * 0.55);
   for(let i=0;i<n;i++){
     const prev = i>0 ? netCum[i-1] : 0;
     const curr = netCum[i];
-    const xx = X0 + i*segW + (segW - barW)/2; // centrar en segmento
+    const xx = X0 + i*segW + (segW - barW)/2; // centrar
     const yPrev = y(prev);
     const yCurr = y(curr);
     const top = Math.min(yPrev, yCurr);
     const height = Math.abs(yCurr - yPrev);
 
-    // color según el flujo del mes
     ctx.fillStyle = (cf[i] >= 0) ? colPos : colNeg;
-    // si el flujo es 0, pinta una línea finita
     if (height < 1) {
-      ctx.fillRect(xx, yCurr-1, barW, 2);
+      ctx.fillRect(xx, yCurr-1, barW, 2); // flujo ~0
     } else {
-      ctx.fillRect(xx, top, barW, height);
+      ctx.fillRect(xx, top, barW, height); // toca la curva
     }
   }
 
-  // Línea acumulada (por encima de las barras)
-  ctx.strokeStyle='#8aa0ff'; ctx.lineWidth=2; ctx.beginPath();
+  // Curva morada del acumulado (encima de las barras)
+  ctx.strokeStyle='#b26cff'; ctx.lineWidth=2;
+  ctx.beginPath();
   for(let i=0;i<n;i++){
     const xx=X0 + (i+0.5)*segW;
     const yy=y(netCum[i]);
@@ -233,7 +245,7 @@ function drawChart(cf){
   ctx.stroke();
 
   // Puntos
-  ctx.fillStyle='#8aa0ff';
+  ctx.fillStyle='#b26cff';
   for(let i=0;i<n;i++){
     const xx=X0 + (i+0.5)*segW, yy=y(netCum[i]);
     ctx.beginPath(); ctx.arc(xx,yy,2.5*(window.devicePixelRatio||1),0,Math.PI*2); ctx.fill();
@@ -260,7 +272,8 @@ document.getElementById('btnCalc').onclick=()=>{
   const k=computeKPIs(cf); lastKPIs=k;
   document.getElementById('kpis').style.display='flex';
   document.getElementById('roi').textContent=isFinite(k.roi)?pct(k.roi):'∞';
-  document.getElementById('irr').textContent=(k.irr_annual==null)?'—':pct(k.irr_annual);
+  // TIR TOTAL del proyecto
+  document.getElementById('irr').textContent=(k.irr_total==null)?'—':pct(k.irr_total);
   document.getElementById('mult').textContent=isFinite(k.mult)?k.mult.toFixed(2):'∞';
   const rate=ratingFor(k); const ratingEl=document.getElementById('rating'); ratingEl.textContent=rate.label; ratingEl.className=rate.cls;
 };
@@ -274,16 +287,19 @@ document.getElementById('btnPDF').onclick=()=>{
   line('Entradas',14,true);
   if(!items.length) line('—');
   else items.forEach(it=> line(`• ${it.tipo==='income'?'Ingreso':'Coste'} — ${it.concepto} | inicio m${it.start} | dur ${it.dur} | €/${'mes'} ${fmt(it.importe)}${it.tipo==='cost'?` | interés ${it.interes.toFixed(2)} %`:''}`));
-  const rate=ratingFor(lastKPIs);
+
+  const k = lastKPIs || {roi:null,irr_total:null,mult:null};
+  const rate = ratingFor(k);
   line('KPIs',14,true);
-  line(`ROI: ${isFinite(lastKPIs.roi)?pct(lastKPIs.roi):'∞'}`);
-  line(`TIR (anual): ${lastKPIs.irr_annual==null?'—':pct(lastKPIs.irr_annual)}`);
-  line(`Multiplicador: ${isFinite(lastKPIs.mult)?lastKPIs.mult.toFixed(2):'∞'}`);
+  line(`ROI: ${isFinite(k.roi)?pct(k.roi):'∞'}`);
+  line(`TIR (TOTAL proyecto): ${k.irr_total==null?'—':pct(k.irr_total)}`);
+  line(`Multiplicador: ${isFinite(k.mult)?k.mult.toFixed(2):'∞'}`);
   line(`Rating: ${rate.label}`);
   line('Notas',14,true);
   line('• Costes con interés compuesto mensual: € × (1 + r/12)^m.');
-  line('• TIR anualizada desde TIR mensual: (1+r_m)^12 - 1.');
+  line('• La TIR TOTAL se calcula como (1+TIR_mensual)^N − 1, siendo N el número de meses del proyecto.');
   line('• Cálculos orientativos.');
+
   doc.save(`Informe_Inversion_${Date.now()}.pdf`);
 };
 
