@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Calculadora de Esfuerzo Financiero URBANIX -- Introduce Costes e Ingresos y Genera tus Informes</title>
+<title>Calculadora de Esfuerzo Financiero URBANIX — Costes/Ingresos + Informe PDF</title>
 
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" href="./icon-192.png" sizes="192x192">
@@ -21,7 +21,7 @@ h1{font-size:20px;margin:0 0 6px}.muted{color:var(--muted);font-size:13px}
 input,select{background:#0e1730;border:1px solid #223153;border-radius:10px;padding:12px;color:var(--text);font-size:16px}
 input[type="number"]{width:140px}input[type="text"]{flex:1 1 220px}
 button{appearance:none;border:none;border-radius:10px;padding:12px 14px;font-weight:700;cursor:pointer;font-size:16px}
-.primary{background:var(--accent);color:#fff}.ghost{background:#1a2544;color:var(--text)}.danger{background:#ff6b6b;color:#fff}
+.primary{background:var(--accent);color:#fff}.ghost{background:#1a2544;color:#fff}.danger{background:#ff6b6b;color:#fff}
 table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px 10px;border-bottom:1px solid #243355;font-size:14px}
 th{color:#9db0d6;text-align:left}.right{text-align:right}.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
 .income{background:#183f2e;color:#9ff3c7}.cost{background:#402424;color:#f7a4a4}
@@ -41,7 +41,7 @@ if ('serviceWorker' in navigator) {
 </head>
 <body>
 <div class="wrap"><div class="card">
-<h1>Calculadora de Esfuerzo Financiero URBANIX -- Introduce Costes e Ingresos y Genera tus Informes</h1>
+<h1>Calculadora de Esfuerzo Financiero URBANIX</h1>
 <p class="muted">Añade ingresos/costes por rango (meses desde t=0). En costes puedes indicar interés anual (%). Calcula ROI, TIR y Multiplicador. Genera PDF.</p>
 
 <div class="row" style="margin-top:6px">
@@ -68,53 +68,35 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <div class="canvasWrap"><canvas id="chart"></canvas></div>
+
 <div class="row" style="justify-content:flex-end;margin-top:10px">
   <button class="danger" id="btnReset">Reiniciar</button>
   <button class="primary" id="btnPDF">Generar PDF</button>
 </div>
+
 <div class="row" style="margin-top:8px;gap:14px;align-items:center">
   <span class="muted">Leyenda:</span>
-  <span style="display:flex;align-items:center;gap:6px">
-    <span style="width:12px;height:12px;background:#3de1a9;border-radius:2px;display:inline-block"></span>
-    <span class="muted">Ingreso mensual</span>
-  </span>
-  <span style="display:flex;align-items:center;gap:6px">
-    <span style="width:12px;height:12px;background:#ff7b7b;border-radius:2px;display:inline-block"></span>
-    <span class="muted">Coste mensual</span>
-  </span>
-  <span style="display:flex;align-items:center;gap:6px">
-    <span style="width:18px;height:2px;background:#2fe59f;display:inline-block"></span>
-    <span class="muted">Ingresos acumulados</span>
-  </span>
-  <span style="display:flex;align-items:center;gap:6px">
-    <span style="width:18px;height:2px;background:#ff9b9b;display:inline-block"></span>
-    <span class="muted">Costes acumulados</span>
-  </span>
-  <span style="display:flex;align-items:center;gap:6px">
-    <span style="width:18px;height:2px;background:#8aa0ff;display:inline-block"></span>
-    <span class="muted">Neto acumulado</span>
-  </span>
+  <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#8aa0ff;display:inline-block"></span><span class="muted">Neto acumulado</span></span>
 </div>
-
 
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
-// ===== Retina canvas =====
-(function resizeCanvas(){
-  const c=document.getElementById('chart'); const dpr=window.devicePixelRatio||1;
+// ======= Retina canvas =======
+(function(){
+  const c=document.getElementById('chart'), dpr=window.devicePixelRatio||1;
   function fit(){ const r=c.getBoundingClientRect(); c.width=Math.round(r.width*dpr); c.height=Math.round(r.height*dpr); if (window.lastCF) drawChart(window.lastCF); }
   window.addEventListener('load',fit); window.addEventListener('resize',fit);
 })();
 
-// ===== Estado y utilidades =====
+// ======= Estado y utilidades =======
 const items=[]; const tbody=document.querySelector('#tabla tbody');
 const fmt=n=>(isFinite(n)?n:0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pct=n=>(isFinite(n)?(n*100):0).toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';
 function escapeHTML(s){return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
-// Alta
+// ======= Alta =======
 document.getElementById('btnAdd').onclick=()=>{
   const tipo=document.getElementById('tipo').value;
   const concepto=document.getElementById('concepto').value.trim()||(tipo==='income'?'Ingreso':'Coste');
@@ -149,7 +131,7 @@ function renderTable(){
   });
 }
 
-// Cashflow mensual
+// ======= Cashflow mensual =======
 function buildCashflow(){
   if(!items.length) return [];
   const last=Math.max(...items.map(it=>it.start+it.dur-1));
@@ -165,7 +147,7 @@ function buildCashflow(){
   return cf;
 }
 
-// KPIs
+// ======= KPIs =======
 function computeKPIs(cf){
   const inflows=cf.filter(x=>x>0).reduce((a,b)=>a+b,0);
   const outflowsAbs=-cf.filter(x=>x<0).reduce((a,b)=>a+b,0);
@@ -189,169 +171,55 @@ function ratingFor(k){
   return {label:'Mejorable',cls:'bad'};
 }
 
-// Gráfica (negativos arriba, positivos abajo)
-<script>
-// Construye acumulados: ingresos, costes (magnitud positiva), y neto
-function buildCumulatives(cf) {
-  const n = cf.length;
-  const inCum  = new Array(n).fill(0);
-  const outCum = new Array(n).fill(0);
-  const netCum = new Array(n).fill(0);
-  let si = 0, so = 0, sn = 0;
-  for (let t = 0; t < n; t++) {
-    const v = cf[t];
-    if (v >= 0) si += v; else so += -v; // costes en positivo para “acumulado de costes”
-    sn += v;
-    inCum[t]  = si;
-    outCum[t] = so;
-    netCum[t] = sn;
-  }
-  return { inCum, outCum, netCum };
-}
-
-// Dibuja barras mensuales + líneas de acumulados
-  <script>
-// Línea de neto acumulado: desde t=0 hasta cada mes t
+// ======= Gráfica: línea de neto acumulado (desde t=0) =======
 function drawChart(cf){
-  const c = document.getElementById('chart'), ctx = c.getContext('2d');
-  const w = c.width, h = c.height;
+  const c=document.getElementById('chart'), ctx=c.getContext('2d'), w=c.width, h=c.height;
   ctx.clearRect(0,0,w,h);
+  const pad={l:50,r:20,t:20,b:30}, X0=pad.l, X1=w-pad.r, Y0=h-pad.b, Y1=pad.t;
 
-  const pad = { l:50, r:20, t:20, b:30 };
-  const X0 = pad.l, X1 = w - pad.r, Y0 = h - pad.b, Y1 = pad.t;
-
-  if (!cf.length) {
-    ctx.fillStyle = '#9db0d6';
-    ctx.font = `${12*(window.devicePixelRatio||1)}px system-ui`;
+  if(!cf.length){
+    ctx.fillStyle='#9db0d6'; ctx.font=`${12*(window.devicePixelRatio||1)}px system-ui`;
     ctx.fillText('Añade ítems y pulsa “Calcular rentabilidad”.', 20*(window.devicePixelRatio||1), 32*(window.devicePixelRatio||1));
     return;
   }
+  const n=cf.length;
+  const netCum=new Array(n).fill(0); let s=0; for(let t=0;t<n;t++){ s+=cf[t]; netCum[t]=s; }
 
-  const n = cf.length;
+  const minV=Math.min(0,...netCum), maxV=Math.max(0,...netCum);
+  const absMax=Math.max(Math.abs(minV),Math.abs(maxV),1);
+  const y0=(h-pad.b+pad.t)/2;
+  const y=v=> y0 + (v/absMax)*((Y0-Y1)/2); // >0 abajo, <0 arriba
 
-  // ===== acumulado neto =====
-  const netCum = new Array(n).fill(0);
-  let s = 0;
-  for (let t = 0; t < n; t++) { s += cf[t]; netCum[t] = s; }
+  // eje 0
+  ctx.strokeStyle='#2c3b63'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(X0,y0); ctx.lineTo(X1,y0); ctx.stroke();
 
-  // Escala vertical con cero en el centro (negativo arriba, positivo abajo)
-  const minV = Math.min(0, ...netCum);
-  const maxV = Math.max(0, ...netCum);
-  const absMax = Math.max(Math.abs(minV), Math.abs(maxV), 1);
-
-  const y0 = (h - pad.b + pad.t) / 2;                        // línea de cero en el centro
-  const y = (v) => y0 + (v / absMax) * ((Y0 - Y1) / 2);      // v>0 baja; v<0 sube (convención)
-
-  // Eje 0
-  ctx.strokeStyle = '#2c3b63';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(X0, y0); ctx.lineTo(X1, y0); ctx.stroke();
-
-  // ===== línea acumulada (azul) =====
-  ctx.strokeStyle = '#8aa0ff';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i < n; i++) {
-    const xx = X0 + (i + 0.5) * (X1 - X0) / n; // punto en el centro del mes
-    const yy = y(netCum[i]);
-    if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+  // línea acumulada
+  ctx.strokeStyle='#8aa0ff'; ctx.lineWidth=2; ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const xx=X0 + (i+0.5)*(X1-X0)/n;
+    const yy=y(netCum[i]);
+    if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
   }
   ctx.stroke();
 
-  // (Opcional) puntos
-  ctx.fillStyle = '#8aa0ff';
-  for (let i = 0; i < n; i++) {
-    const xx = X0 + (i + 0.5) * (X1 - X0) / n;
-    const yy = y(netCum[i]);
-    ctx.beginPath(); ctx.arc(xx, yy, 2.5*(window.devicePixelRatio||1), 0, Math.PI*2); ctx.fill();
+  // puntos
+  ctx.fillStyle='#8aa0ff';
+  for(let i=0;i<n;i++){
+    const xx=X0 + (i+0.5)*(X1-X0)/n, yy=y(netCum[i]);
+    ctx.beginPath(); ctx.arc(xx,yy,2.5*(window.devicePixelRatio||1),0,Math.PI*2); ctx.fill();
   }
 
-  // Ticks X (meses)
-  ctx.fillStyle = '#9db0d6';
-  ctx.font = `${11*(window.devicePixelRatio||1)}px system-ui`;
-  const ticks = Math.min(12, n - 1);
-  for (let i = 0; i <= ticks; i++) {
-    const t = Math.round(i * (n - 1) / ticks);
-    const xx = X0 + (t + 0.5) * (X1 - X0) / n;
-    ctx.fillText('m' + t, xx - 10, h - 8);
-  }
+  // ticks X
+  ctx.fillStyle='#9db0d6'; ctx.font=`${11*(window.devicePixelRatio||1)}px system-ui`;
+  const ticks=Math.min(12,n-1);
+  for(let i=0;i<=ticks;i++){ const t=Math.round(i*(n-1)/ticks); const xx=X0 + (t+0.5)*(X1-X0)/n; ctx.fillText('m'+t, xx-10, h-8); }
 
-  // Etiquetas de referencia (valor aprox)
-  ctx.fillText( (+absMax).toLocaleString('es-ES', { maximumFractionDigits: 0 }), 6, y(+absMax)+4 );
-  ctx.fillText( (-absMax).toLocaleString('es-ES', { maximumFractionDigits: 0 }), 6, y(-absMax)+4 );
+  // referencias
+  ctx.fillText((+absMax).toLocaleString('es-ES',{maximumFractionDigits:0}), 6, y(+absMax)+4);
+  ctx.fillText((-absMax).toLocaleString('es-ES',{maximumFractionDigits:0}), 6, y(-absMax)+4);
 }
 
-  
-
-  // Escala para barras (flujos mensuales) con cero en el centro (negativos arriba, positivos abajo)
-  const minV = Math.min(0, ...cf), maxV = Math.max(0, ...cf);
-  const absMax = Math.max(Math.abs(minV), Math.abs(maxV), 1);
-  const y0 = (h - pad.b + pad.t) / 2;
-  const yBar = (v) => y0 + (v / absMax) * ((Y0 - Y1) / 2);
-
-  // Eje central
-  ctx.strokeStyle = '#2c3b63';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(X0, y0); ctx.lineTo(X1, y0); ctx.stroke();
-
-  // Barras mensuales
-  const bar = Math.max(2, (X1 - X0) / n * 0.7);
-  for (let i = 0; i < n; i++) {
-    const xi = X0 + i * (X1 - X0) / n + ((X1 - X0) / n - bar) / 2;
-    const v  = cf[i];
-    const yy = yBar(v);
-    ctx.fillStyle = v >= 0 ? '#3de1a9' : '#ff7b7b';
-    if (v >= 0) { ctx.fillRect(xi, y0, bar, yy - y0); }        // ingreso hacia abajo
-    else        { ctx.fillRect(xi, yy, bar, y0 - yy); }        // coste hacia arriba
-  }
-
-  // ===== LÍNEAS DE ACUMULADOS (Ingresos, Costes, Neto) =====
-  const { inCum, outCum, netCum } = buildCumulatives(cf);
-
-  // Escala de acumulados: calculamos min/max entre las tres series
-  const accMin = Math.min(0, ...netCum);                   // el neto puede ser negativo
-  const accMax = Math.max( inCum[n-1], outCum[n-1], ...netCum, 0 );
-  const accRange = Math.max(1, accMax - accMin);
-  const yAcc = (v) => Y0 - ( (v - accMin) / accRange ) * (Y0 - Y1); // acumulados con cero en la parte inferior
-
-  // Función línea
-  function plotLine(series, color, width=2) {
-    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
-    for (let i = 0; i < n; i++) {
-      const xx = X0 + (i + 0.5) * (X1 - X0) / n; // en medio de la barra
-      const yy = yAcc(series[i]);
-      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-  }
-
-  // Dibujar acumulados: ingresos (verde), costes (rojo claro), neto (azul)
-  plotLine(inCum,  '#2fe59f', 2);
-  plotLine(outCum, '#ff9b9b', 2);
-  plotLine(netCum, '#8aa0ff', 2);
-
-  // Eje X (meses)
-  ctx.fillStyle = '#9db0d6';
-  ctx.font = `${11*(window.devicePixelRatio||1)}px system-ui`;
-  const ticks = Math.min(12, n - 1);
-  for (let i = 0; i <= ticks; i++) {
-    const t  = Math.round(i * (n - 1) / ticks);
-    const xx = X0 + (t + 0.5) * (X1 - X0) / n;
-    ctx.fillText('m' + t, xx - 10, h - 8);
-  }
-
-  // Etiquetas de escala acumulada (opcional, 2 marcas)
-  ctx.fillText(
-    (accMax).toLocaleString('es-ES', { maximumFractionDigits: 0 }),
-    6, Y1 + 10
-  );
-  ctx.fillText(
-    (accMin).toLocaleString('es-ES', { maximumFractionDigits: 0 }),
-    6, Y0
-  );
-}
-
-// Calcular
+// ======= Calcular =======
 let lastCF=null, lastKPIs=null;
 document.getElementById('btnCalc').onclick=()=>{
   const cf=buildCashflow(); lastCF=window.lastCF=cf; drawChart(cf);
@@ -363,20 +231,21 @@ document.getElementById('btnCalc').onclick=()=>{
   const rate=ratingFor(k); const ratingEl=document.getElementById('rating'); ratingEl.textContent=rate.label; ratingEl.className=rate.cls;
 };
 
-// PDF
+// ======= PDF =======
 document.getElementById('btnPDF').onclick=()=>{
   if(!lastCF) return alert('Primero calcula la rentabilidad.');
   const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'}); const pad=40; let y=pad;
   function line(txt,size=12,bold=false){ doc.setFont('helvetica',bold?'bold':'normal'); doc.setFontSize(size); const lines=doc.splitTextToSize(txt,515); doc.text(lines,pad,y); y+=lines.length*(size+4); }
   line('Informe de Inversión',18,true); line(`Fecha: ${new Date().toLocaleString('es-ES')}`);
-  line('Entradas',14,true); if(!items.length) line('—'); else items.forEach(it=> line(`• ${it.tipo==='income'?'Ingreso':'Coste'} — ${it.concepto} | inicio m${it.start} | dur ${it.dur} | €/${'mes'} ${fmt(it.importe)}${it.tipo==='cost'?` | interés ${it.interes.toFixed(2)} %`:''}`));
+  line('Entradas',14,true);
+  if(!items.length) line('—'); else items.forEach(it=> line(`• ${it.tipo==='income'?'Ingreso':'Coste'} — ${it.concepto} | inicio m${it.start} | dur ${it.dur} | €/${'mes'} ${fmt(it.importe)}${it.tipo==='cost'?` | interés ${it.interes.toFixed(2)} %`:''}`));
   line('KPIs',14,true); const rate=ratingFor(lastKPIs);
   line(`ROI: ${isFinite(lastKPIs.roi)?pct(lastKPIs.roi):'∞'}`); line(`TIR (anual): ${lastKPIs.irr_annual==null?'—':pct(lastKPIs.irr_annual)}`); line(`Multiplicador: ${isFinite(lastKPIs.mult)?lastKPIs.mult.toFixed(2):'∞'}`); line(`Rating: ${rate.label}`);
   line('Notas',14,true); line('• Costes con interés compuesto mensual: € × (1 + r/12)^m.'); line('• TIR anualizada desde TIR mensual: (1+r_m)^12 - 1.'); line('• Cálculos orientativos.');
   doc.save(`Informe_Inversion_${Date.now()}.pdf`);
 };
 
-// Reset
+// ======= Reset =======
 document.getElementById('btnReset').onclick=()=>{
   items.splice(0); renderTable(); lastCF=null; lastKPIs=null;
   const c=document.getElementById('chart'),ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height);
